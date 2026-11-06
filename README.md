@@ -60,6 +60,22 @@ Tear down: `docker compose -f docker/compose.yaml down` / `kubectl delete ns llm
 curl http://<server-ip>:8080/v1/models -H "Authorization: Bearer $LLAMA_API_KEY"
 ```
 
+## Freeing the GPU (e.g. for training)
+
+```bash
+./scripts/llm-off.sh   # delete HPA, scale to 0, confirm GPU memory is freed
+./scripts/llm-on.sh    # scale to 1, wait for ready, restore HPA
+```
+
+Suggested aliases (`~/.bashrc`):
+
+```bash
+alias llm-off='~/repositories/llm-homelab/scripts/llm-off.sh'
+alias llm-on='~/repositories/llm-homelab/scripts/llm-on.sh'
+```
+
+The off state survives reboots. Running `deploy-k3s.sh` also turns it back on.
+
 ## Notes
 
 - **HPA on one GPU:** the 2nd replica stays `Pending`, because there's no free `nvidia.com/gpu`.
