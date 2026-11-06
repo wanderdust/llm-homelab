@@ -1,0 +1,68 @@
+# ConfigMap "llm-config" and Secret "llm-secrets" are created by
+# scripts/deploy-k3s.sh from config/model.env and .env (so the secret never lives in git).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm
+  namespace: llm
+  labels:
+    app: llm
+spec:
+  # No "replicas:" here on purpose: the HPA owns the replica count.
+  # Setting it would make every `kubectl apply` reset the count to that value.
+  strategy:
+    type: Recreate           # one GPU: old pod must release it before the new one starts
+  selector:
+    matchLabels:
+      app: llm
+  template:
+    metadata:
+      labels:
+        app: llm
+    spec:
+      runtimeClassName: nvidia   # k3s-specific: use the NVIDIA container runtime
+      containers:
+        - name: llama-server
+          image: ghcr.io/ggml-org/llama.cpp:server-cuda   # pin a build tag in real use
+          envFrom:
+            - configMapRef:
+                name: llm-config
+            - secretRef:
+                name: llm-secrets
+          env:
+            - name: LLAMA_CACHE
+              value: /models
+            - name: LLAMA_ARG_HOST
+              value: 0.0.0.0
+            - name: LLAMA_ARG_PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: "1"             # HPA % is measured against this
+              memory: 2Gi
+            limits:
+              memory: 4Gi
+              nvidia.com/gpu: 1    # schedule only where a GPU is free
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          # /health returns 503 while the model loads, 200 when ready.
+          startupProbe:            # allow up to 15 min for first download + load
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:          # only receive traffic when ready
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:           # restart if it hangs
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: llm-models

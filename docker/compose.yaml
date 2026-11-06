@@ -1,0 +1,35 @@
+# Docker version of the same deployment.
+# Run from repo root:  ./scripts/deploy-docker.sh
+name: llm
+
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda   # pin a build tag (server-cuda-bXXXX) for reproducibility
+    restart: unless-stopped
+    env_file:
+      - ../config/model.env    # shared config (same file k3s uses)
+      - ../.env                # secret: LLAMA_API_KEY
+    environment:
+      LLAMA_CACHE: /models     # where -hf downloads land
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: "8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - models:/models         # ~ the PersistentVolumeClaim in k8s
+    deploy:
+      resources:
+        reservations:
+          devices:             # ~ "nvidia.com/gpu: 1" in k8s
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:               # ~ readiness/liveness probes in k8s
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10m        # first start downloads the model
+
+volumes:
+  models:

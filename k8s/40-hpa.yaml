@@ -1,0 +1,25 @@
+# CPU-based autoscaling. k3s bundles metrics-server, so this works out of the box.
+# Caveat: with one GPU, replica #2 will sit in Pending (no free nvidia.com/gpu).
+# That's expected here — on a multi-GPU node pool it would schedule.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: llm
+  namespace: llm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # avoid flapping; model loads are slow

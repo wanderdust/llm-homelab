@@ -1,0 +1,13 @@
+# Model weights cache, so restarts don't re-download.
+# k3s ships the "local-path" storage class (a folder on the node's disk).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llm-models
+  namespace: llm
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
