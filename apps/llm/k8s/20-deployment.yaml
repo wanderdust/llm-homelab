@@ -1,5 +1,5 @@
 # ConfigMap "llm-config" and Secret "llm-secrets" are created by
-# scripts/deploy-k3s.sh from config/model.env and .env (so the secret never lives in git).
+# apps/llm/deploy.sh from config/model.env and .env (so the secret never lives in git).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,6 +21,12 @@ spec:
         app: llm
     spec:
       runtimeClassName: nvidia   # k3s-specific: use the NVIDIA container runtime
+      nodeSelector:
+        homelab/gpu: "true"      # only GPU nodes (label set by cluster/setup.sh)
+      tolerations:               # allowed onto the GPU node once it's tainted
+        - key: homelab/gpu
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: llama-server
           image: ghcr.io/ggml-org/llama.cpp:server-cuda   # pin a build tag in real use

@@ -1,88 +1,66 @@
-# llm-homelab
+# homelab
 
-A self-hosted coding-model API (llama.cpp `llama-server` + Qwen3.5-4B) on a single
-GPU box, deployable two ways from the same config: Docker Compose or k3s.
-Clients (e.g. the Pi coding agent) connect at `http://<server-ip>:8080/v1`.
+All deployments for my k3s home lab, in one repo.
+Cluster-wide setup lives in `cluster/`; each app lives in its own folder under `apps/`.
 
 ## Layout
 
 ```
-config/model.env              shared model/server settings (committed)
-.env                          LLAMA_API_KEY (gitignored; copy from .env.example)
-docker/compose.yaml           Docker deployment
-k8s/00-namespace.yaml         ┐
-k8s/10-pvc.yaml               │ app manifests, applied in filename order
-k8s/20-deployment.yaml        │
-k8s/30-service.yaml           │
-k8s/40-hpa.yaml               ┘
-k8s/cluster/                  one-time GPU setup for k3s (RuntimeClass + device plugin)
-scripts/deploy-docker.sh      deploy with Docker
-scripts/deploy-k3s.sh         deploy to k3s
+cluster/
+  setup.sh                    label GPU nodes, install NVIDIA runtime class + device plugin
+  nvidia/                     runtimeclass.yaml, device-plugin.yaml
+apps/
+  llm/                        llama-server + Qwen3.5-4B, OpenAI-compatible API on :8080
+    deploy.sh                 deploy / redeploy
+    on.sh, off.sh             free the GPU (e.g. for training) and bring it back
+    config/model.env          model + server settings (committed)
+    .env                      LLAMA_API_KEY (gitignored; copy from .env.example)
+    k8s/                      namespace, pvc, deployment, service, hpa
+buildlog/                     notes and evidence for the write-up
 ```
 
-## Docker ↔ k8s mapping
+## Usage
 
-| Concern            | Docker Compose                     | k3s                                        |
-|--------------------|------------------------------------|--------------------------------------------|
-| Config             | `env_file: config/model.env`       | ConfigMap `llm-config` (same file)         |
-| Secret             | `env_file: .env`                   | Secret `llm-secrets` (same file)           |
-| GPU                | `deploy.resources...devices`       | `nvidia.com/gpu: 1` + `runtimeClassName`   |
-| Model cache        | named volume `models`              | PVC `llm-models` (local-path)              |
-| Health             | `healthcheck`                      | startup / readiness / liveness probes      |
-| Expose port        | `ports: 8080:8080`                 | Service `type: LoadBalancer` (ServiceLB)   |
-| Restart on failure | `restart: unless-stopped`          | Deployment controller + liveness probe     |
-| Scaling            | —                                  | HPA (CPU, 1→2 replicas)                    |
+```bash
+./cluster/setup.sh            # once, and again whenever nodes change
+./apps/llm/deploy.sh          # deploy or redeploy the LLM
+```
 
-## Prerequisites (on the server)
+Aliases (`~/.bashrc`):
+
+```bash
+alias llm-on='~/repositories/homelab/apps/llm/on.sh'
+alias llm-off='~/repositories/homelab/apps/llm/off.sh'
+```
+
+## Adding an app
+
+Create `apps/<name>/` with a `k8s/` folder and a `deploy.sh`. Use its own namespace.
+Non-GPU apps need no node rules (see below).
+
+## Node placement
+
+- GPU nodes carry the label `homelab/gpu=true` (set by `cluster/setup.sh`).
+- GPU workloads (the LLM, the device plugin) use `nodeSelector: homelab/gpu: "true"`
+  and already tolerate the `homelab/gpu` taint.
+- To keep everything else off the GPU node, taint it **once there is a second,
+  non-GPU node** (with one node it would block all other apps):
+
+  ```bash
+  kubectl taint node pablo-ubuntu homelab/gpu=true:NoSchedule
+  ```
+
+## Prerequisites (GPU node)
 
 1. NVIDIA driver working: `nvidia-smi`
 2. NVIDIA Container Toolkit installed (`nvidia-container-toolkit`)
-3. Docker path: `sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker`
-4. k3s path: install k3s **after** the toolkit (`curl -sfL https://get.k3s.io | sh -`),
-   or `sudo systemctl restart k3s` after installing it, so k3s detects the NVIDIA runtime.
-   Use `KUBECTL="sudo k3s kubectl"` or copy `/etc/rancher/k3s/k3s.yaml` to `~/.kube/config`.
-
-## Deploy
-
-```bash
-cp .env.example .env && sed -i "s/change-me/$(openssl rand -hex 32)/" .env
-./scripts/deploy-docker.sh    # or
-./scripts/deploy-k3s.sh
-```
-
-Run one or the other: both bind port 8080 and both want the GPU.
-
-Tear down: `docker compose -f docker/compose.yaml down` / `kubectl delete ns llm`.
-
-## Test
-
-```bash
-curl http://<server-ip>:8080/v1/models -H "Authorization: Bearer $LLAMA_API_KEY"
-```
-
-## Freeing the GPU (e.g. for training)
-
-```bash
-./scripts/llm-off.sh   # delete HPA, scale to 0, confirm GPU memory is freed
-./scripts/llm-on.sh    # scale to 1, wait for ready, restore HPA
-```
-
-Suggested aliases (`~/.bashrc`):
-
-```bash
-alias llm-off='~/repositories/llm-homelab/scripts/llm-off.sh'
-alias llm-on='~/repositories/llm-homelab/scripts/llm-on.sh'
-```
-
-The off state survives reboots. Running `deploy-k3s.sh` also turns it back on.
+3. k3s installed **after** the toolkit (or `sudo systemctl restart k3s`), so it
+   detects the NVIDIA runtime.
 
 ## Notes
 
-- **HPA on one GPU:** the 2nd replica stays `Pending`, because there's no free `nvidia.com/gpu`.
-  That's the expected result here; on a node pool with more GPUs it would schedule.
-- **Better scaling signal:** CPU is a weak proxy for LLM load. In production you'd
-  scale on queue depth from `/metrics` (e.g. `llamacpp:requests_deferred`, or vLLM's
-  `num_requests_waiting`) via Prometheus Adapter or KEDA.
-- **Recreate strategy:** the Deployment uses `Recreate`, not rolling updates, because
-  a single GPU can't hold the old and new pod at the same time.
-- **Moving to vLLM:** swap the image and args. The API contract (`/v1`) and clients don't change.
+- The HPA (1→2 replicas on CPU) can't actually add capacity on one GPU: the 2nd pod
+  stays `Pending`. A 3-minute scale-up window stops it reacting to the model-load spike.
+- The Deployment uses `Recreate`, because one GPU can't hold the old and new pod at once.
+- The first start downloads the image (~2.6 GB) and the model (~2.7 GB); later starts
+  load from the PVC.

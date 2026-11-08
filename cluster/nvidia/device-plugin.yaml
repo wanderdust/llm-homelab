@@ -19,8 +19,13 @@ spec:
     spec:
       runtimeClassName: nvidia
       priorityClassName: system-node-critical
+      nodeSelector:
+        homelab/gpu: "true"      # don't run on non-GPU nodes (it would crash there)
       tolerations:
         - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: homelab/gpu       # allowed onto the GPU node once it's tainted
           operator: Exists
           effect: NoSchedule
       containers:

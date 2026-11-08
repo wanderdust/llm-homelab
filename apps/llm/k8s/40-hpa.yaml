@@ -21,5 +21,7 @@ spec:
           type: Utilization
           averageUtilization: 70
   behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 180   # ignore the CPU spike while the model loads
     scaleDown:
       stabilizationWindowSeconds: 300   # avoid flapping; model loads are slow

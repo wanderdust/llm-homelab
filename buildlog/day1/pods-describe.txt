@@ -1,0 +1,78 @@
+Name:                llm-6976667c7-hrpw8
+Namespace:           llm
+Priority:            0
+Runtime Class Name:  nvidia
+Service Account:     default
+Node:                pablo-ubuntu/192.168.1.149
+Start Time:          Fri, 06 Nov 2026 15:19:24 +0000
+Labels:              app=llm
+                     pod-template-hash=6976667c7
+Annotations:         kubectl.kubernetes.io/restartedAt: 2026-11-06T15:18:20Z
+Status:              Running
+IP:                  10.42.0.25
+IPs:
+  IP:           10.42.0.25
+Controlled By:  ReplicaSet/llm-6976667c7
+Containers:
+  llama-server:
+    Container ID:   containerd://0b02658394a69e380044aa9b8fb46d0940059e4a2f14a1f7aae561bbf3b4eb02
+    Image:          ghcr.io/ggml-org/llama.cpp:server-cuda
+    Image ID:       ghcr.io/ggml-org/llama.cpp@sha256:5bb779a449a18d8f4333e9814e887746342fe555c528f5eabc92b2093e32673a
+    Port:           8080/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Fri, 06 Nov 2026 15:29:31 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      memory:          4Gi
+      nvidia.com/gpu:  1
+    Requests:
+      cpu:             1
+      memory:          2Gi
+      nvidia.com/gpu:  1
+    Liveness:          http-get http://:http/health delay=0s timeout=5s period=30s successThreshold=1 failureThreshold=3
+    Readiness:         http-get http://:http/health delay=0s timeout=1s period=10s successThreshold=1 failureThreshold=3
+    Startup:           http-get http://:http/health delay=0s timeout=1s period=10s successThreshold=1 failureThreshold=90
+    Environment Variables from:
+      llm-config   ConfigMap  Optional: false
+      llm-secrets  Secret     Optional: false
+    Environment:
+      LLAMA_CACHE:     /models
+      LLAMA_ARG_HOST:  0.0.0.0
+      LLAMA_ARG_PORT:  8080
+    Mounts:
+      /models from models (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-7m9wv (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  models:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  llm-models
+    ReadOnly:   false
+  kube-api-access-7m9wv:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age                 From               Message
+  ----     ------            ----                ----               -------
+  Warning  FailedScheduling  53m                 default-scheduler  0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+  Normal   Scheduled         52m                 default-scheduler  Successfully assigned llm/llm-6976667c7-hrpw8 to pablo-ubuntu
+  Normal   Pulling           52m                 kubelet            spec.containers{llama-server}: Pulling image "ghcr.io/ggml-org/llama.cpp:server-cuda"
+  Normal   Pulled            42m                 kubelet            spec.containers{llama-server}: Successfully pulled image "ghcr.io/ggml-org/llama.cpp:server-cuda" in 10m6.758s (10m6.758s including waiting). Image size: 2604703241 bytes.
+  Normal   Created           42m                 kubelet            spec.containers{llama-server}: Container created
+  Normal   Started           42m                 kubelet            spec.containers{llama-server}: Container started
+  Warning  Unhealthy         32m (x62 over 42m)  kubelet            spec.containers{llama-server}: Startup probe failed: Get "http://10.42.0.25:8080/health": dial tcp 10.42.0.25:8080: connect: connection refused

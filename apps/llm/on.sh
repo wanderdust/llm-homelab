@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bring the model server back: scale to 1, wait until ready, then restore the HPA.
 set -euo pipefail
-cd "$(dirname "$(readlink -f "$0")")/.."
+cd "$(dirname "$(readlink -f "$0")")"
 
 KUBECTL="${KUBECTL:-kubectl}"
 NS=llm

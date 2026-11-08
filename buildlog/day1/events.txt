@@ -1,0 +1,38 @@
+LAST SEEN   TYPE      REASON                         OBJECT                             MESSAGE
+22m         Warning   FailedScheduling               pod/llm-6976667c7-lbnz6            0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 No preemption victims found for incoming pod.
+53m         Warning   FailedScheduling               pod/llm-6976667c7-hrpw8            0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+52m         Normal    Scheduled                      pod/llm-6976667c7-hrpw8            Successfully assigned llm/llm-6976667c7-hrpw8 to pablo-ubuntu
+28m         Warning   FailedScheduling               pod/llm-6976667c7-h9682            0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 No preemption victims found for incoming pod.
+53m         Warning   FailedScheduling               pod/llm-7db98867b5-tc78d           0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+16m         Warning   FailedScheduling               pod/llm-6976667c7-lbnz6            0/1 nodes are available: 1 Insufficient nvidia.com/gpu. preemption: 0/1 nodes are available: 1 No preemption victims found for incoming pod.
+53m         Normal    WaitForFirstConsumer           persistentvolumeclaim/llm-models   waiting for first consumer to be created before binding
+53m         Normal    SuccessfulDelete               replicaset/llm-7db98867b5          Deleted pod: llm-7db98867b5-tc78d
+53m         Normal    UpdatedLoadBalancer            service/llm                        Updated LoadBalancer with new IPs: [] -> [192.168.1.149]
+53m         Normal    ScalingReplicaSet              deployment/llm                     Scaled up replica set llm-6976667c7 from 0 to 1
+53m         Normal    SuccessfulCreate               replicaset/llm-6976667c7           Created pod: llm-6976667c7-hrpw8
+53m         Normal    ScalingReplicaSet              deployment/llm                     Scaled down replica set llm-7db98867b5 from 1 to 0
+53m         Normal    AppliedDaemonSet               service/llm                        Applied LoadBalancer DaemonSet kube-system/svclb-llm-1c8700e6
+53m         Normal    EnsuringLoadBalancer           service/llm                        Ensuring load balancer
+53m         Normal    ScalingReplicaSet              deployment/llm                     Scaled up replica set llm-7db98867b5 from 0 to 1
+53m         Normal    SuccessfulCreate               replicaset/llm-7db98867b5          Created pod: llm-7db98867b5-tc78d
+52m         Normal    WaitForPodScheduled            persistentvolumeclaim/llm-models   waiting for pod llm-6976667c7-hrpw8 to be scheduled
+52m         Normal    Provisioning                   persistentvolumeclaim/llm-models   External provisioner is provisioning volume for claim "llm/llm-models"
+52m         Normal    ExternalProvisioning           persistentvolumeclaim/llm-models   Waiting for a volume to be created either by the external provisioner 'rancher.io/local-path' or manually by the system administrator. If volume creation is delayed, please verify that the provisioner is running and correctly registered.
+52m         Normal    ProvisioningSucceeded          persistentvolumeclaim/llm-models   Successfully provisioned volume pvc-f11fd2bd-c619-4e4a-bb15-fe8afd43f5bb
+52m         Normal    Pulling                        pod/llm-6976667c7-hrpw8            Pulling image "ghcr.io/ggml-org/llama.cpp:server-cuda"
+50m         Warning   FailedComputeMetricsReplicas   horizontalpodautoscaler/llm        invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+43m         Warning   FailedGetResourceMetric        horizontalpodautoscaler/llm        failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+42m         Normal    Pulled                         pod/llm-6976667c7-hrpw8            Successfully pulled image "ghcr.io/ggml-org/llama.cpp:server-cuda" in 10m6.758s (10m6.758s including waiting). Image size: 2604703241 bytes.
+42m         Normal    Started                        pod/llm-6976667c7-hrpw8            Container started
+42m         Normal    Created                        pod/llm-6976667c7-hrpw8            Container created
+33m         Warning   FailedGetResourceMetric        horizontalpodautoscaler/llm        failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+32m         Warning   Unhealthy                      pod/llm-6976667c7-hrpw8            Startup probe failed: Get "http://10.42.0.25:8080/health": dial tcp 10.42.0.25:8080: connect: connection refused
+29m         Normal    UpdatedLoadBalancer            service/llm                        Updated LoadBalancer with new IPs: [192.168.1.149] -> [192.168.1.149]
+28m         Normal    SuccessfulCreate               replicaset/llm-6976667c7           Created pod: llm-6976667c7-h9682
+23m         Normal    SuccessfulDelete               replicaset/llm-6976667c7           Deleted pod: llm-6976667c7-h9682
+22m         Normal    SuccessfulCreate               replicaset/llm-6976667c7           Created pod: llm-6976667c7-lbnz6
+22m         Normal    SuccessfulRescale              horizontalpodautoscaler/llm        New size: 2; reason: cpu resource utilization (percentage of request) above target
+22m         Normal    ScalingReplicaSet              deployment/llm                     Scaled up replica set llm-6976667c7 from 1 to 2
+16m         Normal    SuccessfulDelete               replicaset/llm-6976667c7           Deleted pod: llm-6976667c7-lbnz6
+16m         Normal    SuccessfulRescale              horizontalpodautoscaler/llm        New size: 1; reason: All metrics below target
+16m         Normal    ScalingReplicaSet              deployment/llm                     Scaled down replica set llm-6976667c7 from 2 to 1
