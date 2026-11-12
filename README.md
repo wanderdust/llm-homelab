@@ -16,6 +16,12 @@ apps/
     config/model.env          model + server settings (committed)
     .env                      LLAMA_API_KEY (gitignored; copy from .env.example)
     k8s/                      namespace, pvc, deployment, service, hpa
+  monitoring/                 Prometheus, Loki, Alloy, GPU exporter, Grafana on :3000
+    deploy.sh                 deploy / redeploy (no-op when nothing changed)
+    .env                      Grafana admin user/password (gitignored; copy from .env.example)
+    k8s/                      namespace, HelmCharts (k3s Helm controller), GPU exporter DaemonSet
+    dashboards/               custom Grafana dashboards (JSON), provisioned on deploy
+    SPEC.md                   what the stack must do and why it's built this way
 buildlog/                     notes and evidence for the write-up
 ```
 
@@ -24,6 +30,7 @@ buildlog/                     notes and evidence for the write-up
 ```bash
 ./cluster/setup.sh            # once, and again whenever nodes change
 ./apps/llm/deploy.sh          # deploy or redeploy the LLM
+./apps/monitoring/deploy.sh   # deploy or redeploy monitoring (reads apps/llm/.env for the scrape key)
 ```
 
 Aliases (`~/.bashrc`):
@@ -49,6 +56,66 @@ Non-GPU apps need no node rules (see below).
   ```bash
   kubectl taint node pablo-ubuntu homelab/gpu=true:NoSchedule
   ```
+
+## Monitoring
+
+| Component | Installed as | What it does |
+|---|---|---|
+| Prometheus 3 (+ node-exporter, kube-state-metrics) | HelmChart `prometheus` | Metrics, 7 days / 8 GB, scrapes llama-server with the API key |
+| nvidia_gpu_exporter | DaemonSet `gpu-exporter` | GPU memory, utilisation, temperature, clocks, power via `nvidia-smi` |
+| Loki (single binary) | HelmChart `loki` | Logs, 7 days |
+| Grafana Alloy | HelmChart `alloy` (DaemonSet) | Ships container logs from every node, plus Kubernetes events |
+| Grafana | HelmChart `grafana` | Dashboards and log search |
+
+Charts are installed by the k3s Helm controller from `HelmChart` objects in `kube-system`
+(no Helm CLI). Versions are pinned in each file under `apps/monitoring/k8s/`.
+
+**Access**
+
+- Grafana: `http://<node-ip>:3000`, credentials from `apps/monitoring/.env`.
+  Dashboards: *Homelab → LLM + GPU*, and *Community* (Node Exporter Full, Nvidia GPU, Kubernetes views).
+- Prometheus and Loki have no auth, so they are not on the LAN:
+
+  ```bash
+  kubectl -n monitoring port-forward svc/prometheus-server 9090:80   # http://localhost:9090/targets
+  kubectl -n monitoring port-forward svc/loki 3100
+  ```
+
+**Checking a deploy.** A successful `kubectl apply` of a HelmChart only means the object was
+stored. The install itself runs in a Job:
+
+```bash
+kubectl -n kube-system get jobs | grep helm-install
+kubectl -n kube-system logs job/helm-install-loki
+kubectl -n monitoring get pods
+```
+
+**Exporting logs**
+
+- Grafana: *Explore → Loki → run a query → Inspect → Data → Download*.
+- `logcli` (with the port-forward above):
+  `logcli --addr=http://localhost:3100 query '{namespace="llm"}' --since=24h --limit=0 -o raw > llm.log`
+- HTTP API: `curl -G localhost:3100/loki/api/v1/query_range --data-urlencode 'query={namespace="llm"}' --data-urlencode 'limit=5000'`.
+  One query returns at most 5000 lines, so page through large ranges by time.
+
+Useful LogQL: `{namespace="llm", container="llama-server"}`, `{job="kubernetes-events"}`.
+
+**Upgrading / removing.** Bump `version:` in a HelmChart file and re-run `deploy.sh`.
+Deleting a file from `k8s/` does *not* uninstall anything: `kubectl delete -f <file>` does
+(for a HelmChart, that uninstalls the release).
+
+**Notes**
+
+- The GPU exporter does not request `nvidia.com/gpu` (the LLM holds the only GPU). It reads the
+  GPU through the NVIDIA runtime, which works while the toolkit setting
+  `accept-nvidia-visible-devices-envvar-when-unprivileged` is `true` (the default; see
+  `/etc/nvidia-container-runtime/config.toml`).
+- The LLM API key is copied into Secret `monitoring/llm-scrape` by `deploy.sh`. After rotating
+  the key, re-run both deploy scripts.
+- Prometheus and Loki keep data on `local-path` volumes, which are tied to the node they were
+  created on. To move them to another node, delete their PVCs and redeploy (≤ 7 days of data lost).
+- Grafana has no volume: anything edited in the UI is lost on restart unless exported to
+  `apps/monitoring/dashboards/`. Community dashboards are downloaded at pod start (needs internet).
 
 ## Prerequisites (GPU node)
 

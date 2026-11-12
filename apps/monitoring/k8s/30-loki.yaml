@@ -1,0 +1,68 @@
+# Loki, single binary on the local filesystem. The chart moved to grafana-community
+# on 2026-03-16; the grafana/helm-charts "loki" chart is now for Enterprise Logs.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: loki
+  namespace: kube-system
+spec:
+  repo: https://grafana-community.github.io/helm-charts
+  chart: loki
+  version: 21.2.1              # appVersion 3.7.9
+  targetNamespace: monitoring
+  valuesContent: |-
+    deploymentMode: Monolithic
+    loki:
+      auth_enabled: false      # single tenant; Loki is ClusterIP only
+      commonConfig:
+        replication_factor: 1
+      storage:
+        type: filesystem
+      schemaConfig:
+        configs:
+          - from: "2026-11-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      limits_config:
+        retention_period: 168h # 7 days
+        reject_old_samples: true
+        reject_old_samples_max_age: 168h
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: true
+        storageClass: local-path
+        size: 10Gi
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits: { memory: 512Mi }
+
+    # Zero out the scalable targets (defaults are 3 each).
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
+    # The memcached caches default to several GB of RAM (chunks cache: 8 GB), which
+    # would leave them Pending here. Not needed at this volume.
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+
+    gateway:
+      enabled: false           # Grafana and Alloy talk to the loki service directly
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false

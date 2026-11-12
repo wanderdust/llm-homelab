@@ -1,0 +1,65 @@
+# GPU metrics via nvidia-smi (DCGM doesn't officially support GeForce cards).
+# It does NOT request nvidia.com/gpu: the only GPU belongs to the LLM pod. Instead the
+# NVIDIA runtime injects nvidia-smi + driver libs because of NVIDIA_VISIBLE_DEVICES=all,
+# which the toolkit honours while accept-nvidia-visible-devices-envvar-when-unprivileged
+# is true (the default). nvidia-smi only reads, so sharing the GPU this way is safe.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gpu-exporter
+  namespace: monitoring
+  labels:
+    app: gpu-exporter
+spec:
+  selector:
+    matchLabels:
+      app: gpu-exporter
+  template:
+    metadata:
+      labels:
+        app: gpu-exporter
+      annotations:
+        prometheus.io/scrape: "true"   # picked up by the chart's kubernetes-pods job
+        prometheus.io/port: "9835"
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        homelab/gpu: "true"            # only GPU nodes (label set by cluster/setup.sh)
+      tolerations:
+        - key: homelab/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          # Plain tag = nvidia-smi backend; the -nvml tags read the driver library instead.
+          image: docker.io/utkuozdemir/nvidia_gpu_exporter:1.18.0
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: utility           # nvidia-smi + NVML only, no compute
+          ports:
+            - name: metrics
+              containerPort: 9835
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet: { path: /metrics, port: metrics }
+            periodSeconds: 30
+            timeoutSeconds: 10
