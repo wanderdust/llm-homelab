@@ -30,9 +30,10 @@ spec:
     testFramework:
       enabled: false
 
+    # Grafana 13 needs more than 256Mi at startup (it was OOMKilled there).
     resources:
-      requests: { cpu: 50m, memory: 128Mi }
-      limits: { memory: 256Mi }
+      requests: { cpu: 50m, memory: 256Mi }
+      limits: { memory: 512Mi }
 
     grafana.ini:
       analytics:

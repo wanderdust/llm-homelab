@@ -8,7 +8,7 @@ KUBECTL="${KUBECTL:-kubectl}"
 NS=monitoring
 LLM_ENV=../llm/.env
 
-[[ -f .env ]] || { echo "Missing apps/monitoring/.env — copy .env.example and set GRAFANA_ADMIN_PASSWORD"; exit 1; }
+[[ -f .env ]] || { echo "Missing $PWD/.env — run: cp $PWD/.env.example $PWD/.env and set GRAFANA_ADMIN_PASSWORD"; exit 1; }
 
 echo "==> Namespace"
 $KUBECTL apply -f k8s/00-namespace.yaml

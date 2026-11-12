@@ -6,7 +6,7 @@ cd "$(dirname "$(readlink -f "$0")")"
 KUBECTL="${KUBECTL:-kubectl}"
 NS=llm
 
-[[ -f .env ]] || { echo "Missing apps/llm/.env — copy .env.example and set LLAMA_API_KEY"; exit 1; }
+[[ -f .env ]] || { echo "Missing $PWD/.env — run: cp $PWD/.env.example $PWD/.env and set LLAMA_API_KEY"; exit 1; }
 
 echo "==> Namespace"
 $KUBECTL apply -f k8s/00-namespace.yaml
