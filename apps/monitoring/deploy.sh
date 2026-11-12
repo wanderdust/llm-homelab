@@ -29,11 +29,33 @@ fi
 $KUBECTL -n "$NS" create configmap grafana-dashboards --from-file=dashboards/ \
   --dry-run=client -o yaml | $KUBECTL apply -f -
 
-echo "==> Manifests (HelmCharts + GPU exporter)"
-$KUBECTL apply -f k8s/
+# HelmCharts are installed asynchronously: the k3s Helm controller (re)creates a
+# helm-install-<chart> Job in kube-system whenever a HelmChart changes. Remember each
+# Job's uid so we can wait for the new one before checking rollouts.
+CHARTS="prometheus loki alloy grafana"
+job_uid() { $KUBECTL -n kube-system get job "helm-install-$1" -o jsonpath='{.metadata.uid}' 2>/dev/null || true; }
+before=""
+for c in $CHARTS; do before+="$c=$(job_uid "$c") "; done
 
-# HelmChart objects are installed asynchronously by helm-install-* Jobs in kube-system,
-# so wait for each workload to appear before waiting for its rollout.
+echo "==> Manifests (HelmCharts + GPU exporter)"
+applied=$($KUBECTL apply -f k8s/)
+echo "$applied"
+
+for c in $CHARTS; do
+  grep -qE "helmchart.helm.cattle.io/$c (created|configured)" <<<"$applied" || continue
+  old=$(tr ' ' '\n' <<<"$before" | grep "^$c=" | cut -d= -f2)
+  echo "==> Waiting for helm-install-$c"
+  for _ in $(seq 60); do
+    new=$(job_uid "$c")
+    [[ -n "$new" && "$new" != "$old" ]] && break
+    sleep 2
+  done
+  $KUBECTL -n kube-system wait --for=condition=complete "job/helm-install-$c" --timeout=10m || {
+    echo "Helm install failed. Check: $KUBECTL -n kube-system logs job/helm-install-$c"
+    exit 1
+  }
+done
+
 wait_for() {
   local obj=$1
   for _ in $(seq 60); do
@@ -41,7 +63,7 @@ wait_for() {
     sleep 5
   done
   $KUBECTL -n "$NS" rollout status "$obj" --timeout=10m || {
-    echo "Not ready: $obj. Check: $KUBECTL -n kube-system get jobs | grep helm-install"
+    echo "Not ready: $obj. Check: $KUBECTL -n $NS describe $obj"
     exit 1
   }
 }
