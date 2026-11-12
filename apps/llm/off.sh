@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# Free the GPU: remove the HPA, scale the model server to 0, wait until the GPU is released.
+# Free the GPU: scale the model server to 0, wait until the GPU is released.
 # The "off" state survives reboots (replicas=0 is stored in the cluster).
 set -euo pipefail
 
 KUBECTL="${KUBECTL:-kubectl}"
 NS=llm
-
-echo "==> Removing HPA (otherwise it scales straight back to 1)"
-$KUBECTL -n "$NS" delete hpa llm --ignore-not-found
 
 echo "==> Scaling model server to 0"
 $KUBECTL -n "$NS" scale deployment llm --replicas=0

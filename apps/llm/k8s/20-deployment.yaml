@@ -8,7 +8,7 @@ metadata:
   labels:
     app: llm
 spec:
-  # No "replicas:" here on purpose: the HPA owns the replica count.
+  # No "replicas:" here on purpose: llm-on/llm-off own the replica count (1 or 0).
   # Setting it would make every `kubectl apply` reset the count to that value.
   strategy:
     type: Recreate           # one GPU: old pod must release it before the new one starts
@@ -47,7 +47,7 @@ spec:
               containerPort: 8080
           resources:
             requests:
-              cpu: "1"             # HPA % is measured against this
+              cpu: "1"
               memory: 2Gi
             limits:
               memory: 4Gi

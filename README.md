@@ -15,7 +15,7 @@ apps/
     on.sh, off.sh             free the GPU (e.g. for training) and bring it back
     config/model.env          model + server settings (committed)
     .env                      LLAMA_API_KEY (gitignored; copy from .env.example)
-    k8s/                      namespace, pvc, deployment, service, hpa
+    k8s/                      namespace, pvc, deployment, service
   monitoring/                 Prometheus, Loki, Alloy, GPU exporter, Grafana on :3000
     deploy.sh                 deploy / redeploy (no-op when nothing changed)
     .env                      Grafana admin user/password (gitignored; copy from .env.example)
@@ -126,8 +126,8 @@ Deleting a file from `k8s/` does *not* uninstall anything: `kubectl delete -f <f
 
 ## Notes
 
-- The HPA (1→2 replicas on CPU) can't actually add capacity on one GPU: the 2nd pod
-  stays `Pending`. A 3-minute scale-up window stops it reacting to the model-load spike.
+- No autoscaler: with one GPU a 2nd replica could never schedule. `llm-off`/`llm-on` set
+  the replica count, and `deploy.sh` leaves it as is.
 - The Deployment uses `Recreate`, because one GPU can't hold the old and new pod at once.
 - The first start downloads the image (~2.6 GB) and the model (~2.7 GB); later starts
   load from the PVC.

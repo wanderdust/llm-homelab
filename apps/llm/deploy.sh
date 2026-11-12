@@ -24,4 +24,4 @@ echo "==> Restart so config changes are picked up"
 $KUBECTL -n "$NS" rollout restart deployment/llm
 $KUBECTL -n "$NS" rollout status deployment/llm --timeout=15m
 
-$KUBECTL -n "$NS" get pods,svc,hpa
+$KUBECTL -n "$NS" get pods,svc
