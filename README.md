@@ -22,6 +22,9 @@ apps/
     k8s/                      namespace, HelmCharts (k3s Helm controller), GPU exporter DaemonSet
     dashboards/               custom Grafana dashboards (JSON), provisioned on deploy
     SPEC.md                   what the stack must do and why it's built this way
+  excalidraw/                 live Excalidraw canvas for AI agents (MCP) on :3001
+    deploy.sh                 deploy / redeploy (no-op when nothing changed)
+    k8s/                      namespace, pvc, deployment, service
 buildlog/                     notes and evidence for the write-up
 ```
 
@@ -31,6 +34,7 @@ buildlog/                     notes and evidence for the write-up
 ./cluster/setup.sh            # once, and again whenever nodes change
 ./apps/llm/deploy.sh          # deploy or redeploy the LLM
 ./apps/monitoring/deploy.sh   # deploy or redeploy monitoring (reads apps/llm/.env for the scrape key)
+./apps/excalidraw/deploy.sh   # deploy or redeploy the Excalidraw canvas
 ```
 
 Aliases (`~/.bashrc`):
@@ -116,6 +120,51 @@ Deleting a file from `k8s/` does *not* uninstall anything: `kubectl delete -f <f
   created on. To move them to another node, delete their PVCs and redeploy (≤ 7 days of data lost).
 - Grafana has no volume: anything edited in the UI is lost on restart unless exported to
   `apps/monitoring/dashboards/`. Community dashboards are downloaded at pod start (needs internet).
+
+## Excalidraw
+
+The canvas server from [`yctimlin/mcp_excalidraw`](https://github.com/yctimlin/mcp_excalidraw)
+(image `mcp_excalidraw-canvas:2.2.0`) serves the web UI, a REST API and WebSocket sync on one port.
+
+- Canvas: `http://<node-ip>:3001`. Open it in a browser to watch agents draw live.
+- **No auth.** Anyone on the LAN can view, draw on or clear the canvas.
+- State (elements, images, snapshots) is kept on a `local-path` PVC, so it survives restarts.
+
+**Connecting clients.** The MCP server is stdio-only, so it runs on the client, not in the
+cluster. It is a thin client of the canvas REST API:
+
+```json
+{
+  "mcpServers": {
+    "excalidraw": {
+      "command": "npx",
+      "args": ["-y", "mcp-excalidraw-server@2.2.0"],
+      "env": {
+        "EXPRESS_SERVER_URL": "http://<node-ip>:3001",
+        "EXCALIDRAW_NO_AUTOSTART": "1"
+      }
+    }
+  }
+}
+```
+
+Docker variant: `"command": "docker"`, `"args": ["run", "-i", "--rm", "-e",
+"EXPRESS_SERVER_URL=http://<node-ip>:3001", "ghcr.io/yctimlin/mcp_excalidraw:2.2.0"]`.
+
+**Debugging**
+
+```bash
+curl http://<node-ip>:3001/health                 # element count, websocket clients, durable_state_enabled
+curl http://<node-ip>:3001/api/elements           # what's on the canvas
+curl -X POST http://<node-ip>:3001/api/elements -H 'Content-Type: application/json' \
+  -d '{"type":"rectangle","x":100,"y":100,"width":200,"height":100}'   # should appear in the open tab
+curl -X DELETE http://<node-ip>:3001/api/elements/clear
+kubectl -n excalidraw logs deploy/canvas
+```
+
+Data lives in `/data/canvas/canvas-state-v1.json` inside the pod. The container deletes a stale
+`canvas-state.lock` at start: after a power cut it would otherwise block the server from
+starting (see `buildlog/day4/`).
 
 ## Prerequisites (GPU node)
 

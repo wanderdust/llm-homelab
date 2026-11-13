@@ -1,0 +1,59 @@
+# Excalidraw canvas server: web UI + REST API + WebSocket sync, all on one port.
+# The MCP server is stdio-only, so it runs on the client, not here (see README).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas
+  namespace: excalidraw
+  labels:
+    app: canvas
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate           # the data dir is single-writer: old pod must stop first
+  selector:
+    matchLabels:
+      app: canvas
+  template:
+    metadata:
+      labels:
+        app: canvas
+    spec:
+      containers:
+        - name: canvas
+          image: ghcr.io/yctimlin/mcp_excalidraw-canvas:2.2.0
+          # The server takes a lock dir holding its pid. After a power cut the lock stays
+          # behind, and the new pod is pid 1 too, so it would look "still running" and the
+          # server would refuse to start. One replica + Recreate: safe to drop it.
+          command: [sh, -c, "rm -rf /data/canvas/canvas-state.lock && exec node dist/server.js"]
+          env:
+            - name: PORT
+              value: "3001"
+            - name: EXCALIDRAW_DATA_DIR
+              value: /data/canvas   # subdir: the server wants to own (chmod 700) this dir
+          ports:
+            - name: http
+              containerPort: 3001
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+      securityContext:
+        fsGroup: 1001        # image runs as uid/gid 1001; lets it write the volume
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: canvas-data

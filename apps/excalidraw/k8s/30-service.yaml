@@ -1,0 +1,14 @@
+# ServiceLB: http://<node-ip>:3001 (3000 is Grafana).
+apiVersion: v1
+kind: Service
+metadata:
+  name: canvas
+  namespace: excalidraw
+spec:
+  type: LoadBalancer
+  selector:
+    app: canvas
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http

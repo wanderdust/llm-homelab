@@ -1,0 +1,12 @@
+# Canvas state (elements, images, snapshots), so restarts don't clear the drawing.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: canvas-data
+  namespace: excalidraw
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
